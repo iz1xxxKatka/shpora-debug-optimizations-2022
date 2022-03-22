@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using JPEG.Images;
 
 namespace JPEG
 {
@@ -6,7 +8,12 @@ namespace JPEG
     {
         private const int DCTSize = Compressor.DCTSize;
 
-        public static double[,] DCT2D(double[,] input)
+        public static double[,] DCT2D(
+            Pixel[,] input,
+            Func<Pixel, double> selector,
+            int xOffset,
+            int yOffset
+        )
         {
             var coeffs = new double[DCTSize, DCTSize];
 
@@ -16,7 +23,7 @@ namespace JPEG
                 double sum = 0;
                 for (var x = 0; x < DCTSize; x++)
                 for (var y = 0; y < DCTSize; y++)
-                    sum += BasisFunction(input[x, y], u, v, x, y, DCTSize, DCTSize);
+                    sum += (selector(input[x + xOffset, y + yOffset]) - 128) * bufferCos[x, u] * bufferCos[y, v];
 
                 coeffs[u, v] = sum * beta * Alpha(u) * Alpha(v);
             }
@@ -32,24 +39,24 @@ namespace JPEG
                 double sum = 0;
                 for (var u = 0; u < DCTSize; u++)
                 for (var v = 0; v < DCTSize; v++)
-                    sum += BasisFunction(coeffs[u, v], u, v, x, y, DCTSize, DCTSize) * Alpha(u) * Alpha(v);
+                    sum += coeffs[u, v] * bufferCos[x, u] * bufferCos[y, v] * Alpha(u) * Alpha(v);
 
                 output[x, y] = sum * beta;
             }
         }
 
-        public static double BasisFunction(double a, double u, double v, double x, double y, int height, int width)
-        {
-            var b = Math.Cos((2 * x + 1) * u * Math.PI / (2 * width));
-            var c = Math.Cos((2 * y + 1) * v * Math.PI / (2 * height));
+        public static double[,] bufferCos;
 
-            return a * b * c;
+        static DCT()
+        {
+            bufferCos = new double[DCTSize, DCTSize];
+            for(var i = 0; i < DCTSize; i++)
+            for (var j = 0; j < DCTSize; j++)
+                bufferCos[i, j] = Math.Cos((2 * i + 1) * j * Math.PI / (2 * DCTSize));
         }
 
-        private static Lazy<double> alpha = new Lazy<double>(() => 1 / Math.Sqrt(2));
-        private static double beta = 1.0 / DCTSize+ 1.0 / DCTSize;
+        private static double beta = 1.0 / DCTSize + 1.0 / DCTSize;
 
-        private static double Alpha(int u) => u == 0 ? alpha.Value : 1;
-
+        private static double Alpha(int u) => u == 0 ? 1 / Math.Sqrt(2) : 1;
     }
 }

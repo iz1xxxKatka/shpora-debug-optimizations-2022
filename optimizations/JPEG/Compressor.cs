@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using System.Numerics;
+using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using JPEG.Images;
 using PixelFormat = JPEG.Images.PixelFormat;
@@ -15,6 +15,7 @@ namespace JPEG
     public class Compressor
     {
         const int CompressionQuality = 70;
+
         [Benchmark]
         public void Run()
         {
@@ -22,10 +23,10 @@ namespace JPEG
             {
                 Console.WriteLine(IntPtr.Size == 8 ? "64-bit version" : "32-bit version");
                 var sw = Stopwatch.StartNew();
-                var fileName = @"sample.bmp";
+                var fileName = @"earth.bmp";
                 var compressedFileName = fileName + ".compressed." + CompressionQuality;
                 var uncompressedFileName = fileName + ".uncompressed." + CompressionQuality + ".bmp";
-                
+
                 using (var fileStream = File.OpenRead(fileName))
                 using (var bmp = new Bitmap(fileStream))
                 {
@@ -60,21 +61,28 @@ namespace JPEG
         {
             var allQuantizedBytes = new List<byte>();
 
+            var tasks = new List<Task<byte[]>>();
             for (var y = 0; y < matrix.Height; y += DCTSize)
-                for (var x = 0; x < matrix.Width; x += DCTSize)
+            for (var x = 0; x < matrix.Width; x += DCTSize)
+            {
+                foreach (var selector in new Func<Pixel, double>[] {p => p.Y, p => p.Cb, p => p.Cr})
                 {
-                    foreach (var selector in new Func<Pixel, double>[] {p => p.Y, p => p.Cb, p => p.Cr})
+                    var y1 = y;
+                    var x1 = x;
+                    var task = new Task<byte[]>(() =>
                     {
-                        var subMatrix = GetSubMatrix(matrix, y, DCTSize, x, DCTSize, selector);
-                        ShiftMatrixValues(subMatrix, -128);
-                        var channelFreqs = DCT.DCT2D(subMatrix);
-                        var quantizedFreqs = Quantize(channelFreqs, quality);
-                        var quantizedBytes = ZigZagScan(quantizedFreqs);
-                        allQuantizedBytes.AddRange(quantizedBytes);
-                    }
+                        var channelFreqs = DCT.DCT2D(matrix.Pixels, selector, y1, x1);
+                        return zigZagScan(Quantize(channelFreqs, quality));
+                    });
+                    tasks.Add(task);
+                    task.Start();
                 }
+            }
 
-            var compressedBytes = 
+            foreach (var task in tasks)
+                allQuantizedBytes.AddRange(task.Result);
+            
+            var compressedBytes =
                 HuffmanCodec.Encode(allQuantizedBytes, out var decodeTable, out var bitsCount);
 
             return new CompressedImage
@@ -140,19 +148,8 @@ namespace JPEG
                 matrix.Pixels[y + yOffset, x + xOffset] = new Pixel(a[y, x], b[y, x], c[y, x], format);
         }
 
-        private double[,] GetSubMatrix(Matrix matrix, int yOffset, int yLength, int xOffset, int xLength,
-            Func<Pixel, double> componentSelector)
-        {
-            var result = new double[yLength, xLength];
-            for (var j = 0; j < yLength; j++)
-            for (var i = 0; i < xLength; i++)
-                result[j, i] = componentSelector(matrix.Pixels[yOffset + j, xOffset + i]);
-            return result;
-        }
-
-        private IEnumerable<byte> ZigZagScan(byte[,] channelFreqs)
-        {
-            return new[]
+        private byte[] zigZagScan(byte[,] channelFreqs)
+            => new[]
             {
                 channelFreqs[0, 0], channelFreqs[0, 1], channelFreqs[1, 0], channelFreqs[2, 0], channelFreqs[1, 1],
                 channelFreqs[0, 2], channelFreqs[0, 3], channelFreqs[1, 2],
@@ -171,7 +168,6 @@ namespace JPEG
                 channelFreqs[6, 5], channelFreqs[7, 4], channelFreqs[7, 5], channelFreqs[6, 6], channelFreqs[5, 7],
                 channelFreqs[6, 7], channelFreqs[7, 6], channelFreqs[7, 7]
             };
-        }
 
         private byte[,] ZigZagUnScan(IReadOnlyList<byte> quantizedBytes)
         {
@@ -214,16 +210,12 @@ namespace JPEG
 
         private byte[,] Quantize(double[,] channelFreqs, int quality)
         {
-            var result = new byte[channelFreqs.GetLength(0), channelFreqs.GetLength(1)];
+            var result = new byte[DCTSize, DCTSize];
 
             var quantizationMatrix = GetQuantizationMatrix(quality);
             for (int y = 0; y < DCTSize; y++)
-            {
-                for (int x = 0; x < DCTSize; x++)
-                {
-                    result[y, x] = (byte) (channelFreqs[y, x] / quantizationMatrix[y, x]);
-                }
-            }
+            for (int x = 0; x < DCTSize; x++)
+                result[y, x] = (byte) (channelFreqs[y, x] / quantizationMatrix[y, x]);
 
             return result;
         }
@@ -246,7 +238,7 @@ namespace JPEG
             return result;
         }
 
-        private int[,] GetQuantizationMatrix(int quality)
+        private static int[,] GetQuantizationMatrix(int quality)
         {
             if (quality < 1 || quality > 99)
                 throw new ArgumentException("quality must be in [1,99] interval");
@@ -266,13 +258,9 @@ namespace JPEG
             };
 
 
-            for (int y = 0; y < result.GetLength(0); y++)
-            {
-                for (int x = 0; x < result.GetLength(1); x++)
-                {
-                    result[y, x] = (multiplier * result[y, x] + 50) / 100;
-                }
-            }
+            for (int y = 0; y < 8; y++)
+            for (int x = 0; x < 8; x++)
+                result[y, x] = (multiplier * result[y, x] + 50) / 100;
 
             return result;
         }
