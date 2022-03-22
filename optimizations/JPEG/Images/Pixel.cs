@@ -1,17 +1,16 @@
 ﻿using System;
-using System.Drawing;
 
 namespace JPEG.Images
 {
     public class Pixel
     {
-        public readonly double R;
-        public readonly double G;
-        public readonly double B;
+        public double R;
+        public double G;
+        public double B;
         
-        public readonly double Y;
-        public readonly double Cb;
-        public readonly double Cr;
+        public double Y;
+        public double Cb;
+        public double Cr;
 
         public Pixel(double firstComponent, double secondComponent, double thirdComponent, PixelFormat pixelFormat)
         {

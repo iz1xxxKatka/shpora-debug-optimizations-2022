@@ -2,7 +2,7 @@
 
 namespace JPEG.Images
 {
-    class Matrix
+    public class Matrix
     {
         public readonly Pixel[,] Pixels;
         public readonly int Height;
@@ -41,7 +41,7 @@ namespace JPEG.Images
 
             return matrix;
         }
-
+        
         public static explicit operator Bitmap(Matrix matrix)
         {
             var bmp = new Bitmap(matrix.Width, matrix.Height);
@@ -58,14 +58,12 @@ namespace JPEG.Images
             return bmp;
         }
 
-        public static int ToByte(double d)
+        private static int ToByte(double d)
         {
             var val = (int) d;
             if (val > byte.MaxValue)
                 return byte.MaxValue;
-            if (val < byte.MinValue)
-                return byte.MinValue;
-            return val;
+            return val < byte.MinValue ? byte.MinValue : val;
         }
     }
 }
