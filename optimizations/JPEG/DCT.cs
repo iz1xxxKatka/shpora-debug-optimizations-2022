@@ -31,7 +31,11 @@ namespace JPEG
             return coeffs;
         }
 
-        public static void IDCT2D(double[,] coeffs, double[,] output)
+        public static void IDCT2D(
+            double[,] coeffs,
+            double[,] output,
+            int xOffset,
+            int yOffset)
         {
             for (var x = 0; x < DCTSize; x++)
             for (var y = 0; y < DCTSize; y++)
@@ -41,7 +45,7 @@ namespace JPEG
                 for (var v = 0; v < DCTSize; v++)
                     sum += coeffs[u, v] * bufferCos[x, u] * bufferCos[y, v] * Alpha(u) * Alpha(v);
 
-                output[x, y] = sum * beta;
+                output[x + xOffset, y + yOffset] = sum * beta + 128;
             }
         }
 

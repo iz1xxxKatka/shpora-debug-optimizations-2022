@@ -6,8 +6,8 @@ namespace JPEG
     {
         static void Main(string[] args)
         {
-            //BenchmarkRunner.Run<Compressor>();
-            new Compressor().Run();
+            BenchmarkRunner.Run<Compressor>();
+            //new Compressor().Run();
         }
     }
 }

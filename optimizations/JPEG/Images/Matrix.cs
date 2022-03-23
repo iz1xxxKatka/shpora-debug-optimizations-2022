@@ -16,7 +16,7 @@ namespace JPEG.Images
             Pixels = new Pixel[height, width];
             for (var i = 0; i < height; ++i)
             for (var j = 0; j < width; ++j)
-                Pixels[i, j] = new Pixel(0, 0, 0, PixelFormat.RGB);
+                Pixels[i, j] = new Pixel();
         }
 
         public static explicit operator Matrix(Bitmap bmp)
@@ -30,12 +30,11 @@ namespace JPEG.Images
                 for (var i = 0; i < width; i++)
                 {
                     var pixel = bmp.GetPixel(i, j);
-                    matrix.Pixels[j, i] = new Pixel(
+                    matrix.Pixels[j, i].SetRGB(
                         pixel.R,
                         pixel.G,
-                        pixel.B,
-                        PixelFormat.RGB
-                    );
+                        pixel.B
+                        );
                 }
             }
 
@@ -47,13 +46,11 @@ namespace JPEG.Images
             var bmp = new Bitmap(matrix.Width, matrix.Height);
 
             for (var j = 0; j < bmp.Height; j++)
-            {
                 for (var i = 0; i < bmp.Width; i++)
                 {
                     var pixel = matrix.Pixels[j, i];
                     bmp.SetPixel(i, j, Color.FromArgb(ToByte(pixel.R), ToByte(pixel.G), ToByte(pixel.B)));
                 }
-            }
 
             return bmp;
         }
